@@ -1,0 +1,26 @@
+{
+  "status": "not_trained",
+  "windowSize": 12,
+  "horizon": 1,
+  "featureColumns": [
+    "temperature",
+    "humidity",
+    "lightLux",
+    "dustMgPerM3",
+    "mq135AirQualityDeviation"
+  ],
+  "means": [
+    0,
+    0,
+    0,
+    0,
+    0
+  ],
+  "scales": [
+    1,
+    1,
+    1,
+    1,
+    1
+  ]
+}

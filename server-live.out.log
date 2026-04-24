@@ -1,0 +1,3 @@
+API server listening on http://localhost:3001
+Using MongoDB collections garment_monitoring.sensor_readings and ml_predictions
+Serving frontend from D:\garment-motoring-system\frontend\dist

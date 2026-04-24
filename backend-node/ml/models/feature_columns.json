@@ -1,0 +1,43 @@
+{
+  "anomaly": [
+    "temperature_c",
+    "humidity_pct",
+    "light_lux",
+    "dust_proxy",
+    "gas_proxy",
+    "humidity_delta",
+    "dust_delta",
+    "gas_delta",
+    "humidity_pct_z",
+    "dust_proxy_z",
+    "gas_proxy_z",
+    "humidity_pct_roll_std",
+    "dust_proxy_roll_std",
+    "gas_proxy_roll_std",
+    "hour_of_day",
+    "day_of_week"
+  ],
+  "warning": [
+    "temperature_c",
+    "humidity_pct",
+    "light_lux",
+    "dust_proxy",
+    "gas_proxy",
+    "humidity_delta",
+    "dust_delta",
+    "gas_delta",
+    "humidity_pct_roll_mean",
+    "dust_proxy_roll_mean",
+    "gas_proxy_roll_mean",
+    "humidity_pct_roll_std",
+    "dust_proxy_roll_std",
+    "gas_proxy_roll_std",
+    "humidity_pct_z",
+    "dust_proxy_z",
+    "gas_proxy_z",
+    "hour_of_day",
+    "day_of_week",
+    "anomaly_score_from_pipeline",
+    "anomaly_flag_from_pipeline"
+  ]
+}

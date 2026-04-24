@@ -1,0 +1,4 @@
+{
+  "status": "not_trained",
+  "message": "Run backend/ml/training/train_tinyml_humidity.py with real sensor data to generate a quantized ESP32 model."
+}

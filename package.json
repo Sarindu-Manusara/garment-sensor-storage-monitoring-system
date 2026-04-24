@@ -1,0 +1,41 @@
+{
+  "name": "garment-motoring-system",
+  "version": "1.0.0",
+  "description": "ESP32 serial sensor bridge that stores readings in MongoDB",
+  "main": "src/index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node src/index.js",
+    "ingest": "node src/index.js",
+    "server": "node src/server.js",
+    "client": "vite --config frontend/vite.config.mjs",
+    "client:build": "vite build --config frontend/vite.config.mjs",
+    "client:preview": "vite preview --config frontend/vite.config.mjs",
+    "dev": "concurrently \"npm:server\" \"npm:client\"",
+    "smoke": "node src/smokeTest.js",
+    "test:node": "node --test src/__tests__/api-routes.test.js src/__tests__/chat-route.test.js src/__tests__/chat-tools.test.js",
+    "test:python": "py -m unittest discover -s backend/ml/tests -p \"test_*.py\"",
+    "test": "npm run test:node && npm run test:python",
+    "train:backend:ml": "py backend/ml/training/train_backend_models.py --dataset labeled_garment_dataset.csv",
+    "train:tinyml": "py backend/ml/training/train_tinyml_humidity.py --database garment_monitoring --collection sensor_readings",
+    "evaluate:ml": "py backend/ml/training/evaluate_models.py"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "@serialport/parser-readline": "^12.0.0",
+    "dotenv": "^16.4.7",
+    "express": "^5.1.0",
+    "lottie-react": "^2.4.1",
+    "mongodb": "^6.20.0",
+    "react": "^19.1.1",
+    "react-dom": "^19.1.1",
+    "serialport": "^12.0.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^5.0.2",
+    "concurrently": "^9.2.1",
+    "vite": "^7.1.5"
+  }
+}
