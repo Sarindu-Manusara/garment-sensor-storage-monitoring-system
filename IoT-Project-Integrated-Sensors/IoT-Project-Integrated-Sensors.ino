@@ -24,13 +24,13 @@
 #include <WiFi.h>
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
-#include "secrets.h"
+//#include "secrets.h"
 
 // =======================
 // Wi-Fi / MQTT settings
 // =======================
-const char* WIFI_SSID     = ""; //add wifi ssid here
-const char* WIFI_PASSWORD = ""; //add wifi password here
+const char* WIFI_SSID     = "Sarindu's iPhone"; //add wifi ssid here
+const char* WIFI_PASSWORD = "12345678"; //add wifi password here
 
 const char* MQTT_SERVER   = "broker.hivemq.com";
 const int   MQTT_PORT     = 1883;
