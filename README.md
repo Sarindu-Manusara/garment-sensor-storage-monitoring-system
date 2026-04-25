@@ -6,6 +6,7 @@ This repository now includes the three ML flows wired into the existing Node/Rea
 - Backend anomaly detection from the labeled public dataset
 - Backend warning-level classification from the labeled public dataset
 - Website chatbot grounded in live sensor data, ML outputs, and local project docs
+- Optional WhatsApp alerting through WAAPI when live health reaches warning or danger
 
 ## Repository layout
 
@@ -61,20 +62,54 @@ Common runtime variables:
 - `MONGODB_SENSOR_COLLECTION`
 - `MONGODB_ML_COLLECTION`
 - `MONGODB_CHAT_COLLECTION`
+- `MONGODB_ALERT_COLLECTION`
 - `API_PORT`
 - `ZONE`
 - `PYTHON_BIN`
 - `MQ135_BASELINE_RAW`
 - `BACKEND_MODEL_VERSION`
 - `TINYML_MODEL_VERSION`
+- `PUBLIC_DASHBOARD_URL`
+- `LIVE_ML_MONITOR_ENABLED`
+- `LIVE_ML_MONITOR_INTERVAL_MS`
 - `CHAT_LLM_PROVIDER`
 - `CHAT_LLM_API_KEY`
 - `CHAT_LLM_BASE_URL`
 - `CHAT_LLM_MODEL`
 - `CHAT_LLM_TIMEOUT_MS`
+- `WAAPI_ENABLED`
+- `WAAPI_BASE_URL`
+- `WAAPI_INSTANCE_ID`
+- `WAAPI_API_TOKEN`
+- `WAAPI_CHAT_IDS`
+- `WAAPI_RECIPIENT_PHONES`
+- `WAAPI_ALERT_COOLDOWN_MINUTES`
+- `WAAPI_SEND_WARNING_ALERTS`
+- `WAAPI_SEND_DANGER_ALERTS`
 - `VITE_API_BASE_URL` for a separately hosted frontend build
 
 The chatbot works with `CHAT_LLM_PROVIDER=local` by default, which keeps responses deterministic and grounded in backend tool outputs. If you want an external OpenAI-compatible LLM to rewrite the final answer text, set `CHAT_LLM_PROVIDER`, `CHAT_LLM_API_KEY`, `CHAT_LLM_BASE_URL`, and `CHAT_LLM_MODEL`.
+
+## WhatsApp alerts with WAAPI
+
+The backend can now watch new sensor readings in MongoDB, run the existing ML inference pipeline, store/update `ml_predictions`, and send WhatsApp alerts through WAAPI when the latest health state becomes `warning` or `danger`.
+
+Minimal setup:
+
+1. Set `WAAPI_ENABLED=true`
+2. Set `WAAPI_INSTANCE_ID`
+3. Set `WAAPI_API_TOKEN`
+4. Configure recipients with either `WAAPI_CHAT_IDS` or `WAAPI_RECIPIENT_PHONES`
+5. Keep `LIVE_ML_MONITOR_ENABLED=true` so the backend polls MongoDB for new readings
+
+Alert behavior:
+
+- `warningLevel=medium` maps to a warning alert
+- `warningLevel=high` maps to a danger alert
+- if no stored warning level exists, the backend falls back to configured sensor thresholds and anomaly score
+- repeated alerts for the same zone and same severity are deduplicated for `WAAPI_ALERT_COOLDOWN_MINUTES`
+
+The monitor runs inside `npm run server`, so your deployed backend can keep evaluating new MongoDB readings without needing the frontend to call `/api/ml/anomaly-warning/infer` manually.
 
 ## GitHub Pages deployment
 

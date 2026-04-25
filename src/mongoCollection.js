@@ -8,13 +8,15 @@ async function connectToDatabase(config) {
   const sensorCollection = db.collection(config.mongodbCollection);
   const mlCollection = db.collection(config.mongodbMlCollection || "ml_predictions");
   const chatCollection = db.collection(config.mongodbChatCollection || "chat_messages");
+  const alertCollection = db.collection(config.mongodbAlertCollection || "alert_notifications");
 
   return {
     mongoClient,
     db,
     sensorCollection,
     mlCollection,
-    chatCollection
+    chatCollection,
+    alertCollection
   };
 }
 

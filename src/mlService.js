@@ -193,6 +193,114 @@ function buildMlPredictionDocument({
   };
 }
 
+function mergeMlPredictionDocument(existingDocument = null, nextDocument = {}) {
+  const source = existingDocument || {};
+  const merged = {
+    ...source,
+    ...nextDocument
+  };
+
+  for (const [key, value] of Object.entries(nextDocument)) {
+    if (value === undefined) {
+      delete merged[key];
+      continue;
+    }
+
+    if (value === null) {
+      if (source[key] === undefined) {
+        merged[key] = null;
+      } else {
+        merged[key] = source[key];
+      }
+      continue;
+    }
+
+    if (Array.isArray(value) && value.length === 0 && Array.isArray(source[key]) && source[key].length > 0) {
+      merged[key] = source[key];
+      continue;
+    }
+
+    merged[key] = value;
+  }
+
+  return {
+    document: merged,
+    inference: {
+      anomalyFlag: merged.anomalyFlag ?? false,
+      anomalyScore: merged.anomalyScore ?? 0,
+      anomalyReasons: merged.anomalyReasons ?? [],
+      warningLevel: merged.warningLevel ?? "low",
+      warningConfidence: merged.warningConfidence ?? 0,
+      modelVersion: merged.backendModelVersion
+        ? { warning: merged.backendModelVersion }
+        : merged.modelVersion
+    }
+  };
+}
+
+async function saveMlPredictionDocument(mlCollection, document) {
+  const timestamp = document.timestamp instanceof Date ? document.timestamp : new Date(document.timestamp);
+  const existingDocument = await mlCollection
+    .find({
+      zone: document.zone,
+      timestamp
+    })
+    .sort({ createdAt: -1, _id: -1 })
+    .limit(1)
+    .next();
+
+  if (!existingDocument) {
+    const inserted = {
+      ...document,
+      timestamp
+    };
+    const result = await mlCollection.insertOne(inserted);
+    return {
+      operation: "inserted",
+      document: {
+        _id: result.insertedId,
+        ...inserted
+      }
+    };
+  }
+
+  const merged = mergeMlPredictionDocument(existingDocument, {
+    ...document,
+    timestamp,
+    createdAt: existingDocument.createdAt || document.createdAt || new Date()
+  }).document;
+
+  if (typeof mlCollection.updateOne === "function") {
+    await mlCollection.updateOne(
+      { _id: existingDocument._id },
+      {
+        $set: {
+          ...merged,
+          updatedAt: new Date()
+        }
+      }
+    );
+  } else if (Array.isArray(mlCollection.documents)) {
+    const index = mlCollection.documents.findIndex((candidate) => String(candidate._id) === String(existingDocument._id));
+    if (index >= 0) {
+      mlCollection.documents[index] = {
+        ...mlCollection.documents[index],
+        ...merged,
+        updatedAt: new Date()
+      };
+    }
+  }
+
+  return {
+    operation: "updated",
+    document: {
+      ...existingDocument,
+      ...merged,
+      updatedAt: new Date()
+    }
+  };
+}
+
 async function summarizeToday(mlCollection, zone) {
   const start = new Date();
   start.setUTCHours(0, 0, 0, 0);
@@ -260,6 +368,8 @@ module.exports = {
   loadLatestSensorReading,
   loadSensorHistory,
   mapReadingToMlSample,
+  mergeMlPredictionDocument,
+  saveMlPredictionDocument,
   summarizeToday,
   toApiReading,
   toMlInferenceSnapshot,

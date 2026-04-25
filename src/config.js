@@ -47,6 +47,7 @@ function loadBaseConfig(env) {
     mongodbCollection,
     mongodbMlCollection: env.MONGODB_ML_COLLECTION || "ml_predictions",
     mongodbChatCollection: env.MONGODB_CHAT_COLLECTION || "chat_messages",
+    mongodbAlertCollection: env.MONGODB_ALERT_COLLECTION || "alert_notifications",
     pythonBin: env.PYTHON_BIN || "py",
     tinymlModelVersion: env.TINYML_MODEL_VERSION || "tinyml-humidity-v1",
     backendModelVersion: env.BACKEND_MODEL_VERSION || "backend-ml-v1",
@@ -58,6 +59,24 @@ function loadBaseConfig(env) {
     mq135BaselineRaw: parseNumber(env.MQ135_BASELINE_RAW, 2800, "MQ135_BASELINE_RAW"),
     deviceId: env.DEVICE_ID || "esp32-garment-1",
     zone: env.ZONE || "zone1",
+    publicDashboardUrl: env.PUBLIC_DASHBOARD_URL || "",
+    liveMlMonitorEnabled: String(env.LIVE_ML_MONITOR_ENABLED ?? "true").trim().toLowerCase() !== "false",
+    liveMlMonitorIntervalMs: parseInteger(env.LIVE_ML_MONITOR_INTERVAL_MS, 15000, "LIVE_ML_MONITOR_INTERVAL_MS"),
+    waapiEnabled: String(env.WAAPI_ENABLED || "false").trim().toLowerCase() === "true",
+    waapiBaseUrl: env.WAAPI_BASE_URL || "https://waapi.app/api/v1/instances",
+    waapiInstanceId: env.WAAPI_INSTANCE_ID || "",
+    waapiApiToken: env.WAAPI_API_TOKEN || "",
+    waapiChatIds: String(env.WAAPI_CHAT_IDS || "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean),
+    waapiRecipientPhones: String(env.WAAPI_RECIPIENT_PHONES || "")
+      .split(",")
+      .map((value) => value.trim())
+      .filter(Boolean),
+    waapiAlertCooldownMinutes: parseInteger(env.WAAPI_ALERT_COOLDOWN_MINUTES, 30, "WAAPI_ALERT_COOLDOWN_MINUTES"),
+    waapiSendWarningAlerts: String(env.WAAPI_SEND_WARNING_ALERTS ?? "true").trim().toLowerCase() !== "false",
+    waapiSendDangerAlerts: String(env.WAAPI_SEND_DANGER_ALERTS ?? "true").trim().toLowerCase() !== "false",
     riskThresholds: {
       temperature: {
         medium: parseNumber(env.TEMPERATURE_MEDIUM_THRESHOLD, 28, "TEMPERATURE_MEDIUM_THRESHOLD"),

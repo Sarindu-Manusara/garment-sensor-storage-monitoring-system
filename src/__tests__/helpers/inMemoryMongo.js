@@ -108,6 +108,33 @@ class InMemoryCollection {
       deletedCount: before - this.documents.length
     };
   }
+
+  async updateOne(filter = {}, update = {}) {
+    const target = this.documents.find((document) => {
+      for (const [field, value] of Object.entries(filter)) {
+        if (document[field] !== value) {
+          return false;
+        }
+      }
+      return true;
+    });
+
+    if (!target) {
+      return {
+        matchedCount: 0,
+        modifiedCount: 0
+      };
+    }
+
+    if (update.$set && typeof update.$set === "object") {
+      Object.assign(target, update.$set);
+    }
+
+    return {
+      matchedCount: 1,
+      modifiedCount: 1
+    };
+  }
 }
 
 module.exports = {

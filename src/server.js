@@ -5,6 +5,8 @@ const path = require("node:path");
 
 const express = require("express");
 
+const { createAlertService } = require("./alertService");
+const { startAlertMonitor } = require("./alertMonitor");
 const { registerChatRoutes } = require("./chat/chatController");
 const { createChatService } = require("./chat/chatService");
 const { loadConfig } = require("./config");
@@ -14,6 +16,7 @@ const {
   loadClosestMlDocument,
   loadClosestSensorReading,
   loadLatestSensorReading,
+  saveMlPredictionDocument,
   summarizeToday,
   toApiReading,
   toMlInferenceSnapshot,
@@ -40,7 +43,7 @@ function asyncRoute(handler) {
   };
 }
 
-async function createIndexes(sensorCollection, mlCollection, chatCollection = null) {
+async function createIndexes(sensorCollection, mlCollection, chatCollection = null, alertCollection = null) {
   const indexJobs = [
     sensorCollection.createIndex({ zone: 1, timestamp: -1 }),
     mlCollection.createIndex({ zone: 1, timestamp: -1 }),
@@ -51,6 +54,10 @@ async function createIndexes(sensorCollection, mlCollection, chatCollection = nu
     indexJobs.push(chatCollection.createIndex({ conversationId: 1, createdAt: 1 }));
   }
 
+  if (alertCollection) {
+    indexJobs.push(alertCollection.createIndex({ zone: 1, healthStatus: 1, createdAt: -1 }));
+  }
+
   await Promise.all(indexJobs);
 }
 
@@ -58,6 +65,7 @@ function buildApp({
   config,
   sensorCollection,
   mlCollection,
+  alertService = null,
   chatService = null,
   frontendDistPath,
   hasBuiltFrontend,
@@ -84,7 +92,9 @@ function buildApp({
     response.json({
       status: "ok",
       service: "garment-motoring-api",
-      checkedAt: new Date()
+      checkedAt: new Date(),
+      liveMlMonitorEnabled: Boolean(config.liveMlMonitorEnabled),
+      waapiEnabled: Boolean(config.waapiEnabled)
     });
   });
 
@@ -168,8 +178,15 @@ function buildApp({
       config
     });
 
-    await mlCollection.insertOne(document);
-    console.log(`Stored backend ML inference for ${sample.zone} at ${sample.timestamp}`);
+    const saved = await saveMlPredictionDocument(mlCollection, document);
+    if (alertService) {
+      await alertService.sendAlert({
+        actualReading: sample,
+        inference: result,
+        source: "api-infer"
+      });
+    }
+    console.log(`Stored backend ML inference for ${sample.zone} at ${sample.timestamp} (${saved.operation})`);
 
     response.json({
       anomalyFlag: result.anomalyFlag,
@@ -214,8 +231,15 @@ function buildApp({
       config
     });
 
-    await mlCollection.insertOne(document);
-    console.log(`Stored TinyML prediction for ${payload.zone} at ${payload.timestamp}`);
+    const saved = await saveMlPredictionDocument(mlCollection, document);
+    if (alertService && inferenceResult) {
+      await alertService.sendAlert({
+        actualReading,
+        inference: inferenceResult,
+        source: "tinyml-upload"
+      });
+    }
+    console.log(`Stored TinyML prediction for ${payload.zone} at ${payload.timestamp} (${saved.operation})`);
 
     response.status(201).json({
       stored: true,
@@ -402,11 +426,15 @@ function buildApp({
 async function main() {
   const config = loadConfig(process.env, { requireSerial: false });
   const apiPort = Number.parseInt(process.env.PORT || process.env.API_PORT || "3001", 10);
-  const { mongoClient, sensorCollection, mlCollection, chatCollection } = await connectToDatabase(config);
-  await createIndexes(sensorCollection, mlCollection, chatCollection);
+  const { mongoClient, sensorCollection, mlCollection, chatCollection, alertCollection } = await connectToDatabase(config);
+  await createIndexes(sensorCollection, mlCollection, chatCollection, alertCollection);
 
   const frontendDistPath = path.resolve(__dirname, "..", "frontend", "dist");
   const hasBuiltFrontend = fs.existsSync(frontendDistPath);
+  const alertService = createAlertService({
+    config,
+    alertCollection
+  });
   const chatService = createChatService({
     config,
     sensorCollection,
@@ -418,10 +446,21 @@ async function main() {
     config,
     sensorCollection,
     mlCollection,
+    alertService,
     chatService,
     frontendDistPath,
     hasBuiltFrontend
   });
+
+  const alertMonitor = config.liveMlMonitorEnabled
+    ? startAlertMonitor({
+      config,
+      sensorCollection,
+      mlCollection,
+      alertService,
+      intervalMs: config.liveMlMonitorIntervalMs
+    })
+    : null;
 
   const server = app.listen(apiPort, () => {
     console.log(`API server listening on http://localhost:${apiPort}`);
@@ -429,10 +468,16 @@ async function main() {
     if (hasBuiltFrontend) {
       console.log(`Serving frontend from ${frontendDistPath}`);
     }
+    if (config.liveMlMonitorEnabled) {
+      console.log(`Live ML monitor enabled with ${config.liveMlMonitorIntervalMs}ms polling`);
+    }
   });
 
   async function shutdown(signal) {
     console.log(`Received ${signal}, closing API server...`);
+    if (alertMonitor) {
+      alertMonitor.stop();
+    }
 
     await new Promise((resolve, reject) => {
       server.close((error) => {

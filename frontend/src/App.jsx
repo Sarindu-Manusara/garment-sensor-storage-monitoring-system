@@ -425,7 +425,7 @@ function LineChart({ title, series, footer }) {
             key={item.key}
             fill="none"
             stroke={item.color}
-            strokeWidth="3"
+            strokeWidth="1.8"
             strokeLinecap="round"
             strokeLinejoin="round"
             points={buildPolyline(item.points, min, max)}
@@ -472,7 +472,7 @@ function WarningChart({ points }) {
         <polyline
           fill="none"
           stroke="#8b5cf6"
-          strokeWidth="3"
+          strokeWidth="1.8"
           strokeLinecap="round"
           strokeLinejoin="round"
           points={polyline}
@@ -554,7 +554,7 @@ function CoordinatedLineChart({
                 y1={y}
                 y2={y}
                 stroke={line.color}
-                strokeWidth="1.5"
+                strokeWidth="1"
                 strokeDasharray="4 5"
                 opacity="0.85"
               />
@@ -572,7 +572,7 @@ function CoordinatedLineChart({
             y1={padding}
             y2={height - padding}
             stroke="#0f172a"
-            strokeWidth="1.5"
+            strokeWidth="1"
             strokeDasharray="3 4"
             opacity="0.7"
           />
@@ -585,7 +585,7 @@ function CoordinatedLineChart({
               <polyline
                 fill="none"
                 stroke={item.color}
-                strokeWidth="3"
+                strokeWidth="1.8"
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 points={coordinates.map((point) => `${point.x},${point.y}`).join(" ")}
@@ -595,10 +595,10 @@ function CoordinatedLineChart({
                   key={`${item.key}-${point.timestamp}`}
                   cx={point.x}
                   cy={point.y}
-                  r={point.timestamp === selectedTimestamp ? 4.8 : 3.2}
+                  r={point.timestamp === selectedTimestamp ? 3.8 : 2.2}
                   fill={point.timestamp === selectedTimestamp ? "#ffffff" : item.color}
                   stroke={item.color}
-                  strokeWidth={point.timestamp === selectedTimestamp ? 2.4 : 1.2}
+                  strokeWidth={point.timestamp === selectedTimestamp ? 1.6 : 0.9}
                   style={{ cursor: "pointer" }}
                   onClick={() => onSelectTimestamp?.(point.timestamp)}
                 />
@@ -679,7 +679,7 @@ function TimelineBrush({
         <polyline
           fill="none"
           stroke="#0f766e"
-          strokeWidth="2.4"
+          strokeWidth="1.5"
           strokeLinecap="round"
           strokeLinejoin="round"
           points={coordinates.map((point) => `${point.x},${point.y}`).join(" ")}
@@ -691,7 +691,7 @@ function TimelineBrush({
             y1={padding}
             y2={height - padding}
             stroke="#0f172a"
-            strokeWidth="1.2"
+            strokeWidth="0.9"
             strokeDasharray="3 4"
           />
         ) : null}
@@ -700,7 +700,7 @@ function TimelineBrush({
             key={`brush-${point.timestamp}`}
             cx={point.x}
             cy={point.y}
-            r={point.timestamp === selectedTimestamp ? 4 : 2.2}
+            r={point.timestamp === selectedTimestamp ? 3.4 : 1.8}
             fill={point.timestamp === selectedTimestamp ? "#f97316" : "#0f766e"}
             style={{ cursor: "pointer" }}
             onClick={() => onSelectTimestamp?.(point.timestamp)}
@@ -1434,7 +1434,7 @@ export default function App() {
         <main id="dashboard-main" style={styles.main}>
           <header className="top-bar" style={styles.topBar}>
             <div>
-              <div style={styles.topTitle}>MAOCHI Sensor + ML Console</div>
+              <div style={styles.topTitle}>MAOCHI Console</div>
               <div style={styles.topSub}>Live storage monitoring</div>
             </div>
 
