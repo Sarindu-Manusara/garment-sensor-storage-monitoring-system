@@ -8,7 +8,7 @@ import logoImage from "../../src/images/logo.png";
 import mlIcon from "../../src/images/ml.png";
 import timelineIcon from "../../src/images/timeline.png";
 import zoneIcon from "../../src/images/zone.png";
-import { toApiUrl } from "./services/apiBase";
+import { getApiBaseUrl, toApiUrl } from "./services/apiBase";
 
 const POLL_INTERVAL_MS = 5000;
 const DEFAULT_ZONE = "zone1";
@@ -102,6 +102,20 @@ const DETAIL_FILTERS = [
   { key: "alerting", label: "Alerting only" },
   { key: "predicted", label: "Prediction points" }
 ];
+
+const EMPTY_ML_HISTORY = {
+  series: {
+    actualHumidity: [],
+    predictedHumidity: [],
+    anomalyScore: [],
+    warningLevel: []
+  },
+  summary: {
+    anomalyCountToday: 0,
+    avgHumidityPredictionError: null,
+    currentWarningState: "unknown"
+  }
+};
 
 const timeFormatter = new Intl.DateTimeFormat("en-US", {
   dateStyle: "medium",
@@ -1132,6 +1146,7 @@ function HistoryTable({ recent, highlightedReading, onSelectReading }) {
 }
 
 export default function App() {
+  const apiSource = getApiBaseUrl() || "same-origin /api";
   const [activeNav, setActiveNav] = useState("zones");
   const [activeZone, setActiveZone] = useState(DEFAULT_ZONE);
   const [activeRange, setActiveRange] = useState("24h");
@@ -1176,15 +1191,54 @@ export default function App() {
     }
 
     try {
-      const historyQuery = buildRangeQuery(activeRange, activeZone);
-      const [zonesResponse, latestResponse, recentResponse, mlLatestResponse, mlHistoryResponse] = await Promise.all([
-        fetchJson("/api/readings/zones?limit=200"),
-        fetchJson(`/api/readings/latest?zone=${encodeURIComponent(activeZone)}`),
-        fetchJson(`/api/readings/recent?limit=18&zone=${encodeURIComponent(activeZone)}`),
-        fetchJson(`/api/ml/latest?zone=${encodeURIComponent(activeZone)}`),
+      let zones = [];
+      let zonesError = null;
+
+      try {
+        const zonesResponse = await fetchJson("/api/readings/zones?limit=200");
+        zones = zonesResponse.zones ?? [];
+      } catch (requestError) {
+        zonesError = requestError;
+      }
+
+      const resolvedZone = zones.some((zoneRow) => zoneRow.zone === activeZone)
+        ? activeZone
+        : (zones[0]?.zone || activeZone);
+      const historyQuery = buildRangeQuery(activeRange, resolvedZone);
+      const [latestResult, recentResult, mlLatestResult, mlHistoryResult] = await Promise.allSettled([
+        fetchJson(`/api/readings/latest?zone=${encodeURIComponent(resolvedZone)}`),
+        fetchJson(`/api/readings/recent?limit=18&zone=${encodeURIComponent(resolvedZone)}`),
+        fetchJson(`/api/ml/latest?zone=${encodeURIComponent(resolvedZone)}`),
         fetchJson(`/api/ml/history?${historyQuery}`)
       ]);
-      const zones = zonesResponse.zones ?? [];
+
+      const requestErrors = [];
+      if (zonesError) {
+        requestErrors.push(`zones: ${zonesError.message}`);
+      }
+
+      const latestResponse = latestResult.status === "fulfilled" ? latestResult.value : null;
+      const recentResponse = recentResult.status === "fulfilled" ? recentResult.value : null;
+      const mlLatestResponse = mlLatestResult.status === "fulfilled" ? mlLatestResult.value : null;
+      const mlHistoryResponse = mlHistoryResult.status === "fulfilled" ? mlHistoryResult.value : null;
+
+      if (latestResult.status === "rejected") {
+        requestErrors.push(`latest reading: ${latestResult.reason.message}`);
+      }
+      if (recentResult.status === "rejected") {
+        requestErrors.push(`recent readings: ${recentResult.reason.message}`);
+      }
+      if (mlLatestResult.status === "rejected") {
+        requestErrors.push(`latest ML: ${mlLatestResult.reason.message}`);
+      }
+      if (mlHistoryResult.status === "rejected") {
+        requestErrors.push(`ML history: ${mlHistoryResult.reason.message}`);
+      }
+
+      if (zones.length === 0 && latestResponse?.reading) {
+        zones = [latestResponse.reading];
+      }
+
       const zoneStatusRows = await Promise.all(
         zones.map(async (zoneRow) => {
           try {
@@ -1209,12 +1263,18 @@ export default function App() {
       );
 
       startTransition(() => {
-        setLatestReading(latestResponse.reading ?? null);
-        setRecentReadings(recentResponse.readings ?? []);
+        if (resolvedZone !== activeZone) {
+          setActiveZone(resolvedZone);
+        }
+        setLatestReading(latestResponse?.reading ?? zones.find((zoneRow) => zoneRow.zone === resolvedZone) ?? null);
+        setRecentReadings(recentResponse?.readings ?? []);
         setZoneSummaries(zoneStatusRows);
         setMlLatest(mlLatestResponse ?? null);
-        setMlHistory(mlHistoryResponse ?? null);
-        setError("");
+        setMlHistory(mlHistoryResponse ?? {
+          ...EMPTY_ML_HISTORY,
+          zone: resolvedZone
+        });
+        setError(requestErrors.length > 0 ? `API source ${apiSource} | ${requestErrors.join(" | ")}` : "");
         setIsLoading(false);
         setIsRefreshing(false);
       });
@@ -1456,6 +1516,10 @@ export default function App() {
                   <div style={styles.pulseRow}>
                     <span style={styles.pulseLabel}>Focused metric</span>
                     <span style={styles.pulseVal}>{getMetricConfig(focusMetric).label}</span>
+                  </div>
+                  <div style={styles.pulseRow}>
+                    <span style={styles.pulseLabel}>API source</span>
+                    <span style={styles.pulseVal}>{apiSource}</span>
                   </div>
                 </div>
               </div>
