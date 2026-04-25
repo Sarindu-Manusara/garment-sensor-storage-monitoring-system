@@ -1,4 +1,5 @@
 const { spawn } = require("node:child_process");
+const fs = require("node:fs");
 const path = require("node:path");
 
 const { normalizeStoredReading, toApiReading } = require("./sensorSchema");
@@ -18,7 +19,15 @@ function mapReadingToMlSample(reading) {
 }
 
 function runPythonMlInference(config, payload) {
-  const scriptPath = path.resolve(__dirname, "..", "backend", "ml", "inference", "live_infer.py");
+  const candidateScriptPaths = [
+    path.resolve(__dirname, "..", "backend", "ml", "inference", "live_infer.py")
+  ];
+  const scriptPath = candidateScriptPaths.find((candidate) => fs.existsSync(candidate));
+
+  if (!scriptPath) {
+    const checked = candidateScriptPaths.join(", ");
+    return Promise.reject(new Error(`Python ML inference entrypoint was not found. Checked: ${checked}`));
+  }
 
   return new Promise((resolve, reject) => {
     const child = spawn(config.pythonBin, [scriptPath], {
