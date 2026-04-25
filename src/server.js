@@ -401,7 +401,7 @@ function buildApp({
 
 async function main() {
   const config = loadConfig(process.env, { requireSerial: false });
-  const apiPort = Number.parseInt(process.env.API_PORT || "3001", 10);
+  const apiPort = Number.parseInt(process.env.PORT || process.env.API_PORT || "3001", 10);
   const { mongoClient, sensorCollection, mlCollection, chatCollection } = await connectToDatabase(config);
   await createIndexes(sensorCollection, mlCollection, chatCollection);
 

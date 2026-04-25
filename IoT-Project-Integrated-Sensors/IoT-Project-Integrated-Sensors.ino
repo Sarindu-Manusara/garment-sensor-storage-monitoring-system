@@ -29,8 +29,8 @@
 // =======================
 // Wi-Fi / MQTT settings
 // =======================
-const char* WIFI_SSID     = "Sarindu's iPhone"; //add wifi ssid here
-const char* WIFI_PASSWORD = "12345678"; //add wifi password here
+const char* WIFI_SSID     = "SLIIT-STD"; //add wifi ssid here
+const char* WIFI_PASSWORD = "sarindu@32726"; //add wifi password here
 
 const char* MQTT_SERVER   = "broker.hivemq.com";
 const int   MQTT_PORT     = 1883;
