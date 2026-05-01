@@ -31,6 +31,8 @@ class ExportPipelineTest(unittest.TestCase):
                 np.array([0.5, 1.5, 2.5], dtype=np.float32),
                 ["temperature", "humidity", "lightLux"],
                 12,
+                68.5,
+                4.25,
             )
 
             header_text = header_path.read_text(encoding="utf-8")
@@ -41,6 +43,8 @@ class ExportPipelineTest(unittest.TestCase):
             self.assertIn("kHumidityWindowSize = 12", scaler_text)
             self.assertIn("\"humidity\"", scaler_text)
             self.assertIn("1.50000000f", scaler_text)
+            self.assertIn("kHumidityTargetMean = 68.50000000f", scaler_text)
+            self.assertIn("kHumidityTargetScale = 4.25000000f", scaler_text)
 
 
 if __name__ == "__main__":

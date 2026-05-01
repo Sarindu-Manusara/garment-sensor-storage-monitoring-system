@@ -131,6 +131,31 @@ test("ML routes accept inference and latest/history responses", async () => {
   const baseUrl = `http://127.0.0.1:${address.port}`;
 
   try {
+    const deviceResponse = await fetch(`${baseUrl}/api/readings/device`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        timestamp: "2026-04-21T10:55:10.605Z",
+        zone: "zone1",
+        deviceId: "esp32-garment-1",
+        temperature: 31.7,
+        humidity: 68.4,
+        lightLux: 60.2,
+        dustMgPerM3: 0.132,
+        mq135Raw: 2824,
+        mq135AirQualityDeviation: 1.8,
+        predictedHumidity: 68.8,
+        predictionHorizon: 1,
+        inferenceLatencyMs: 14,
+        modelVersion: "tinyml-humidity-v1"
+      })
+    });
+    assert.equal(deviceResponse.status, 201);
+    const devicePayload = await deviceResponse.json();
+    assert.equal(devicePayload.reading.zone, "zone1");
+    assert.equal(devicePayload.tinyml.predictedHumidity, 68.8);
+    assert.equal(devicePayload.inference.warningLevel, "high");
+
     const inferResponse = await fetch(`${baseUrl}/api/ml/anomaly-warning/infer`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -159,8 +184,8 @@ test("ML routes accept inference and latest/history responses", async () => {
     const historyResponse = await fetch(`${baseUrl}/api/ml/history?from=2026-04-21T00:00:00.000Z&to=2026-04-21T23:59:59.000Z&zone=zone1`);
     assert.equal(historyResponse.status, 200);
     const historyPayload = await historyResponse.json();
-    assert.equal(historyPayload.series.actualHumidity.length, 1);
-    assert.equal(historyPayload.series.warningLevel.length, 1);
+    assert.ok(historyPayload.series.actualHumidity.length >= 1);
+    assert.ok(historyPayload.series.warningLevel.length >= 1);
 
     const eventDetailResponse = await fetch(`${baseUrl}/api/ml/event-detail?zone=zone1&timestamp=2026-04-21T10:54:10.605Z`);
     assert.equal(eventDetailResponse.status, 200);

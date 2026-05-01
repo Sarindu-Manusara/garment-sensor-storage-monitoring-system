@@ -34,6 +34,33 @@ class SequenceBuilderTest(unittest.TestCase):
         self.assertAlmostEqual(y[0], frame.loc[12, "humidity"])
         self.assertAlmostEqual(X[0, -1, 1], frame.loc[11, "humidity"])
 
+    def test_skips_windows_that_cross_large_time_gaps(self) -> None:
+        timestamps = list(pd.date_range("2026-01-01", periods=12, freq="5s", tz="UTC"))
+        timestamps.extend(pd.date_range("2026-01-01 00:10:00", periods=12, freq="5s", tz="UTC"))
+        frame = pd.DataFrame(
+            {
+                "timestamp": timestamps,
+                "temperature": [28.0] * 24,
+                "humidity": [60.0 + index for index in range(24)],
+                "lightLux": [100.0] * 24,
+                "dustMgPerM3": [0.05] * 24,
+                "mq135AirQualityDeviation": [0.1] * 24,
+            }
+        )
+
+        X, y, sequence_timestamps = build_humidity_sequences(
+            frame,
+            window_size=6,
+            horizon=1,
+            max_gap_seconds=12.5,
+        )
+
+        self.assertEqual(len(X), 12)
+        self.assertEqual(len(y), 12)
+        self.assertEqual(len(sequence_timestamps), 12)
+        self.assertTrue(all(timestamp >= timestamps[6] for timestamp in sequence_timestamps[:6]))
+        self.assertTrue(all(timestamp >= timestamps[18] for timestamp in sequence_timestamps[6:]))
+
 
 if __name__ == "__main__":
     unittest.main()

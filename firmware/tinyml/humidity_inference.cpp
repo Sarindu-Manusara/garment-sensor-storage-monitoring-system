@@ -12,6 +12,7 @@
 #include <tensorflow/lite/schema/schema_generated.h>
 #else
 #define HUMIDITY_TINYML_AVAILABLE 0
+#warning "TensorFlowLite.h was not found during compilation. TinyML humidity inference will stay disabled on this build."
 #endif
 
 #if HUMIDITY_TINYML_AVAILABLE
@@ -19,7 +20,9 @@ namespace {
 tflite::MicroErrorReporter micro_error_reporter;
 const tflite::Model* model_ptr = nullptr;
 tflite::MicroInterpreter* interpreter_ptr = nullptr;
-constexpr int kTensorArenaSize = 16 * 1024;
+// The current exported model reports an estimated arena need of ~40512 bytes.
+// Keep some headroom so AllocateTensors succeeds reliably on the ESP32.
+constexpr int kTensorArenaSize = 48 * 1024;
 alignas(16) uint8_t tensor_arena[kTensorArenaSize];
 }  // namespace
 #endif
@@ -74,6 +77,14 @@ bool HumidityInferenceEngine::canInfer() const {
   return enabled_ && count_ >= kHumidityWindowSize;
 }
 
+bool HumidityInferenceEngine::isEnabled() const {
+  return enabled_;
+}
+
+int HumidityInferenceEngine::bufferedCount() const {
+  return count_;
+}
+
 TinyMlInferenceResult HumidityInferenceEngine::predict() {
   TinyMlInferenceResult result = {false, 0.0f, 0, "tinyml-humidity-untrained"};
   if (!canInfer()) {
@@ -115,7 +126,7 @@ TinyMlInferenceResult HumidityInferenceEngine::predict() {
   const float dequantized =
       (static_cast<float>(output->data.int8[0]) - output->params.zero_point) * output->params.scale;
   result.valid = true;
-  result.predictedHumidity = dequantized;
+  result.predictedHumidity = (dequantized * kHumidityTargetScale) + kHumidityTargetMean;
   result.inferenceLatencyMs = millis() - started_at;
   result.modelVersion = "tinyml-humidity-v1";
 #endif

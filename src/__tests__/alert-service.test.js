@@ -23,7 +23,7 @@ function buildConfig(overrides = {}) {
       humidity: { medium: 60, high: 70 },
       light: { medium: 150, high: 300 },
       dust: { medium: 0.03, high: 0.045 },
-      gas: { medium: 0.75, high: 1.5 }
+      gas: { medium: 15, high: 20 }
     },
     backendModelVersion: "backend-ml-v1",
     ...overrides
@@ -85,7 +85,7 @@ test("WAAPI alert service sends once and deduplicates repeated warning state", a
       timestamp: new Date("2026-04-25T02:30:00.000Z"),
       humidity: 73.8,
       dustMgPerM3: 0.052,
-      mq135AirQualityDeviation: 1.91
+      mq135AirQualityDeviation: 21.4
     },
     inference: {
       warningLevel: "high",
@@ -119,7 +119,7 @@ test("live monitor persists inference for new readings and triggers alert delive
       lightLux: 81,
       dustMgPerM3: 0.049,
       mq135Raw: 2830,
-      mq135AirQualityDeviation: 1.82
+      mq135AirQualityDeviation: 21.1
     }
   ]);
   const mlCollection = new InMemoryCollection([]);

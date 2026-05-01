@@ -11,7 +11,7 @@ function main() {
       humidity: { medium: 60, high: 70 },
       light: { medium: 150, high: 300 },
       dust: { medium: 0.03, high: 0.045 },
-      gas: { medium: 0.75, high: 1.5 }
+      gas: { medium: 15, high: 20 }
     },
     mq135BaselineRaw: 2800
   };

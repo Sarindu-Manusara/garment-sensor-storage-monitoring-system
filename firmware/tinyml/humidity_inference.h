@@ -26,10 +26,12 @@ class HumidityInferenceEngine {
   bool begin();
   void pushReading(const TinyMlReading& reading);
   bool canInfer() const;
+  bool isEnabled() const;
+  int bufferedCount() const;
   TinyMlInferenceResult predict();
 
  private:
- TinyMlReading buffer_[kHumidityWindowSize];
+  TinyMlReading buffer_[kHumidityWindowSize];
   int nextIndex_;
   int count_;
   bool enabled_;

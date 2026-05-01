@@ -276,11 +276,12 @@ def build_humidity_sequences(
     target_column: str = "humidity",
     window_size: int = 12,
     horizon: int = 1,
+    max_gap_seconds: float | None = None,
 ) -> Tuple[np.ndarray, np.ndarray, List[pd.Timestamp]]:
     ordered = frame.sort_values("timestamp").reset_index(drop=True)
     features = ordered.loc[:, list(feature_columns)].to_numpy(dtype=np.float32)
     targets = ordered.loc[:, target_column].to_numpy(dtype=np.float32)
-    timestamps = ordered.loc[:, "timestamp"].tolist()
+    timestamps = pd.to_datetime(ordered.loc[:, "timestamp"], utc=True, errors="coerce").tolist()
 
     sequences: List[np.ndarray] = []
     labels: List[float] = []
@@ -288,6 +289,11 @@ def build_humidity_sequences(
     max_index = len(ordered) - horizon
     for end_index in range(window_size, max_index + 1):
         start_index = end_index - window_size
+        if max_gap_seconds is not None:
+            window_timestamps = timestamps[start_index : end_index + horizon]
+            diffs = np.diff([timestamp.value for timestamp in window_timestamps]) / 1_000_000_000.0
+            if np.any(diffs > max_gap_seconds):
+                continue
         sequences.append(features[start_index:end_index])
         labels.append(targets[end_index + horizon - 1])
         label_timestamps.append(timestamps[end_index + horizon - 1])

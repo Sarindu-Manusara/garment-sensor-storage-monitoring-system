@@ -1,4 +1,80 @@
 {
-  "status": "not_trained",
-  "message": "Run backend/ml/training/train_tinyml_humidity.py with real sensor data to generate a quantized ESP32 model."
+  "trainedAt": "2026-04-25T11:36:42.316630+00:00",
+  "datasetRows": 40189,
+  "windowSize": 12,
+  "horizon": 1,
+  "resampleRule": "5s",
+  "maxGapSeconds": 12.5,
+  "featureColumns": [
+    "temperature",
+    "humidity",
+    "lightLux",
+    "dustMgPerM3",
+    "mq135AirQualityDeviation"
+  ],
+  "candidateReports": {
+    "mlp": {
+      "keras_path": "D:\\garment-motoring-system\\artifacts\\tinyml\\mlp_humidity_model.keras",
+      "tflite_path": "D:\\garment-motoring-system\\artifacts\\tinyml\\mlp_humidity_model.tflite",
+      "validation_mae": 0.07479940354824066,
+      "validation_rmse": 0.10569481992553911,
+      "validation_r2": 0.9994996786117554,
+      "test_float": {
+        "mae": 0.20513612031936646,
+        "rmse": 0.23913052345333605,
+        "r2": 0.9991800785064697
+      },
+      "test_quantized": {
+        "mae": 4.589976787567139,
+        "rmse": 8.373347332855637,
+        "r2": -0.005320310592651367
+      },
+      "size_bytes": 5064,
+      "compatible": true,
+      "preferred_for_deploy": true
+    },
+    "cnn": {
+      "keras_path": "D:\\garment-motoring-system\\artifacts\\tinyml\\cnn_humidity_model.keras",
+      "tflite_path": "D:\\garment-motoring-system\\artifacts\\tinyml\\cnn_humidity_model.tflite",
+      "validation_mae": 0.1296406090259552,
+      "validation_rmse": 0.19760552950462673,
+      "validation_r2": 0.9982512593269348,
+      "test_float": {
+        "mae": 0.8202619552612305,
+        "rmse": 2.4307313498244785,
+        "r2": 0.9152811169624329
+      },
+      "test_quantized": {
+        "mae": 4.633399963378906,
+        "rmse": 8.374801405644456,
+        "r2": -0.0056694746017456055
+      },
+      "size_bytes": 4624,
+      "compatible": true,
+      "preferred_for_deploy": false
+    }
+  },
+  "selectedModel": "mlp",
+  "selectedModelPath": "D:\\garment-motoring-system\\artifacts\\tinyml\\humidity_model.tflite",
+  "selectionReason": "Selected MLP because it stays within 10% of the best validation MAE while keeping the most deployment-friendly operator set.",
+  "estimatedTensorArenaBytes": 40512,
+  "splitSizes": {
+    "train": 27952,
+    "validation": 5989,
+    "test": 5991
+  },
+  "timestampRanges": {
+    "train": [
+      "2026-04-21 10:55:10+00:00",
+      "2026-04-23 03:26:25+00:00"
+    ],
+    "validation": [
+      "2026-04-23 03:26:30+00:00",
+      "2026-04-23 11:45:30+00:00"
+    ],
+    "test": [
+      "2026-04-23 11:45:35+00:00",
+      "2026-04-25 08:24:45+00:00"
+    ]
+  }
 }

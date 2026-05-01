@@ -39,6 +39,7 @@ The backend normalizes live readings to the ML-ready schema below and preserves 
 
 - `GET /api/readings/latest`
 - `GET /api/readings/recent?limit=10`
+- `GET /api/dashboard?zone=zone1&limit=10`
 - `POST /api/ml/anomaly-warning/infer`
 - `POST /api/ml/tinyml-prediction`
 - `GET /api/ml/latest?zone=zone1`
@@ -90,6 +91,8 @@ Common runtime variables:
 
 The chatbot works with `CHAT_LLM_PROVIDER=local` by default, which keeps responses deterministic and grounded in backend tool outputs. If you want an external OpenAI-compatible LLM to rewrite the final answer text, set `CHAT_LLM_PROVIDER`, `CHAT_LLM_API_KEY`, `CHAT_LLM_BASE_URL`, and `CHAT_LLM_MODEL`.
 
+If Python inference is enabled, `PYTHON_BIN` should point to a valid Python executable. The backend now tries the configured command first, then falls back to common commands such as `python` and `python3` when possible.
+
 ## WhatsApp alerts with WAAPI
 
 The backend can now watch new sensor readings in MongoDB, run the existing ML inference pipeline, store/update `ml_predictions`, and send WhatsApp alerts through WAAPI when the latest health state becomes `warning` or `danger`.
@@ -100,7 +103,7 @@ Minimal setup:
 2. Set `WAAPI_INSTANCE_ID`
 3. Set `WAAPI_API_TOKEN`
 4. Configure recipients with either `WAAPI_CHAT_IDS` or `WAAPI_RECIPIENT_PHONES`
-5. Keep `LIVE_ML_MONITOR_ENABLED=true` so the backend polls MongoDB for new readings
+5. Set `LIVE_ML_MONITOR_ENABLED=true` only if you also want the backend to run the optional ML polling loop
 
 Alert behavior:
 
@@ -109,7 +112,7 @@ Alert behavior:
 - if no stored warning level exists, the backend falls back to configured sensor thresholds and anomaly score
 - repeated alerts for the same zone and same severity are deduplicated for `WAAPI_ALERT_COOLDOWN_MINUTES`
 
-The monitor runs inside `npm run server`, so your deployed backend can keep evaluating new MongoDB readings without needing the frontend to call `/api/ml/anomaly-warning/infer` manually.
+The monitor runs inside `npm run server` only when `LIVE_ML_MONITOR_ENABLED=true`, so the default backend behavior stays focused on serving MongoDB data to the frontend.
 
 ## GitHub Pages deployment
 
@@ -139,6 +142,8 @@ Backend API:
 ```bash
 npm run server
 ```
+
+The frontend dashboard now reads its main sensor view from `GET /api/dashboard`, which pulls the latest and recent sensor readings directly from MongoDB for the selected zone.
 
 Frontend dev server:
 

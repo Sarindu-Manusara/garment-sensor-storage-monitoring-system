@@ -48,7 +48,7 @@ function loadBaseConfig(env) {
     mongodbMlCollection: env.MONGODB_ML_COLLECTION || "ml_predictions",
     mongodbChatCollection: env.MONGODB_CHAT_COLLECTION || "chat_messages",
     mongodbAlertCollection: env.MONGODB_ALERT_COLLECTION || "alert_notifications",
-    pythonBin: env.PYTHON_BIN || "py",
+    pythonBin: env.PYTHON_BIN || (process.platform === "win32" ? "py" : "python3"),
     tinymlModelVersion: env.TINYML_MODEL_VERSION || "tinyml-humidity-v1",
     backendModelVersion: env.BACKEND_MODEL_VERSION || "backend-ml-v1",
     chatLlmProvider: (env.CHAT_LLM_PROVIDER || "local").trim().toLowerCase(),
@@ -60,7 +60,7 @@ function loadBaseConfig(env) {
     deviceId: env.DEVICE_ID || "esp32-garment-1",
     zone: env.ZONE || "zone1",
     publicDashboardUrl: env.PUBLIC_DASHBOARD_URL || "",
-    liveMlMonitorEnabled: String(env.LIVE_ML_MONITOR_ENABLED ?? "true").trim().toLowerCase() !== "false",
+    liveMlMonitorEnabled: String(env.LIVE_ML_MONITOR_ENABLED ?? "false").trim().toLowerCase() === "true",
     liveMlMonitorIntervalMs: parseInteger(env.LIVE_ML_MONITOR_INTERVAL_MS, 15000, "LIVE_ML_MONITOR_INTERVAL_MS"),
     waapiEnabled: String(env.WAAPI_ENABLED || "false").trim().toLowerCase() === "true",
     waapiBaseUrl: env.WAAPI_BASE_URL || "https://waapi.app/api/v1/instances",
@@ -95,8 +95,8 @@ function loadBaseConfig(env) {
         high: parseNumber(env.DUST_HIGH_THRESHOLD, 0.045, "DUST_HIGH_THRESHOLD")
       },
       gas: {
-        medium: parseNumber(env.GAS_MEDIUM_THRESHOLD, 0.75, "GAS_MEDIUM_THRESHOLD"),
-        high: parseNumber(env.GAS_HIGH_THRESHOLD, 1.5, "GAS_HIGH_THRESHOLD")
+        medium: parseNumber(env.GAS_MEDIUM_THRESHOLD, 15, "GAS_MEDIUM_THRESHOLD"),
+        high: parseNumber(env.GAS_HIGH_THRESHOLD, 20, "GAS_HIGH_THRESHOLD")
       }
     }
   };

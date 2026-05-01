@@ -46,7 +46,7 @@ function parseLiveInferencePayload(payload = {}) {
   const timestamp = requireIsoTimestamp(payload.timestamp);
   const sample = {
     timestamp: timestamp.toISOString(),
-    zone: String(payload.zone || "zone1").trim() || "zone1",
+    zone: parseSafeZone(payload.zone || "zone1"),
     temperature: asFiniteNumber(payload.temperature),
     humidity: asFiniteNumber(payload.humidity),
     lightLux: asFiniteNumber(payload.lightLux ?? payload.light),
@@ -60,6 +60,39 @@ function parseLiveInferencePayload(payload = {}) {
   }
 
   return sample;
+}
+
+function parseSafeDeviceId(value, fallback = "esp32-garment-1") {
+  const normalized = String(value || fallback).trim();
+  if (!/^[a-zA-Z0-9._:-]{3,120}$/.test(normalized)) {
+    throw new Error("deviceId must be a safe identifier.");
+  }
+  return normalized;
+}
+
+function parseDeviceReadingPayload(payload = {}) {
+  const sample = parseLiveInferencePayload(payload);
+  const predictionHorizon = payload.predictionHorizon === undefined || payload.predictionHorizon === null || payload.predictionHorizon === ""
+    ? null
+    : Number.parseInt(payload.predictionHorizon, 10);
+
+  if (predictionHorizon !== null && (!Number.isInteger(predictionHorizon) || predictionHorizon <= 0)) {
+    throw new Error("predictionHorizon must be a positive integer when provided.");
+  }
+
+  const predictedHumidity = asFiniteNumber(payload.predictedHumidity);
+  const inferenceLatencyMs = asFiniteNumber(payload.inferenceLatencyMs);
+
+  return {
+    ...sample,
+    deviceId: parseSafeDeviceId(payload.deviceId),
+    predictedHumidity,
+    predictionHorizon: predictedHumidity !== null ? (predictionHorizon || 1) : null,
+    inferenceLatencyMs: predictedHumidity !== null && inferenceLatencyMs !== null ? inferenceLatencyMs : null,
+    modelVersion: predictedHumidity !== null
+      ? String(payload.modelVersion || "tinyml-humidity-v1").trim() || "tinyml-humidity-v1"
+      : null
+  };
 }
 
 function parseTinymlPredictionPayload(payload = {}) {
@@ -143,6 +176,7 @@ module.exports = {
   asFiniteNumber,
   parseChatMessagePayload,
   parseConversationQuery,
+  parseDeviceReadingPayload,
   parseEventDetailQuery,
   parseHistoryRange,
   parseLiveInferencePayload,

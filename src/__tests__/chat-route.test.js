@@ -12,7 +12,7 @@ function buildConfig() {
     riskThresholds: {
       humidity: { medium: 60, high: 70 },
       dust: { medium: 0.03, high: 0.045 },
-      gas: { medium: 0.75, high: 1.5 }
+      gas: { medium: 15, high: 20 }
     },
     chatLlmProvider: "local",
     chatLlmTimeoutMs: 5000

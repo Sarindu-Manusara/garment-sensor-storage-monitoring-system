@@ -17,7 +17,7 @@
     "test:python": "py -m unittest discover -s backend/ml/tests -p \"test_*.py\"",
     "test": "npm run test:node && npm run test:python",
     "train:backend:ml": "py backend/ml/training/train_backend_models.py --dataset labeled_garment_dataset.csv",
-    "train:tinyml": "py backend/ml/training/train_tinyml_humidity.py --database garment_monitoring --collection sensor_readings",
+    "train:tinyml": "py backend/ml/training/train_tinyml_humidity.py",
     "evaluate:ml": "py backend/ml/training/evaluate_models.py"
   },
   "engines": {

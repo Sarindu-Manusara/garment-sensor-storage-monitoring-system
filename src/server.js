@@ -26,9 +26,11 @@ const { connectToDatabase } = require("./mongoCollection");
 const {
   parseEventDetailQuery,
   parseHistoryRange,
+  parseDeviceReadingPayload,
   parseLiveInferencePayload,
   parseTinymlPredictionPayload
 } = require("./requestValidation");
+const { buildMongoDocumentFromSample } = require("./mongoDocument");
 
 function asyncRoute(handler) {
   return async (request, response) => {
@@ -41,6 +43,24 @@ function asyncRoute(handler) {
       });
     }
   };
+}
+
+async function loadLatestZoneSnapshots(sensorCollection, limit = 200) {
+  const documents = await sensorCollection
+    .find()
+    .sort({ timestamp: -1, _id: -1 })
+    .limit(limit)
+    .toArray();
+
+  const latestByZone = new Map();
+  for (const document of documents) {
+    const reading = toApiReading(document);
+    if (!latestByZone.has(reading.zone)) {
+      latestByZone.set(reading.zone, reading);
+    }
+  }
+
+  return Array.from(latestByZone.values());
 }
 
 async function createIndexes(sensorCollection, mlCollection, chatCollection = null, alertCollection = null) {
@@ -140,28 +160,100 @@ function buildApp({
     });
   }));
 
+  app.get("/api/dashboard", asyncRoute(async (request, response) => {
+    const requestedZone = String(request.query.zone || "").trim();
+    const rawLimit = Number.parseInt(request.query.limit, 10);
+    const limit = Number.isInteger(rawLimit) && rawLimit > 0
+      ? Math.min(rawLimit, 48)
+      : 12;
+
+    const zones = await loadLatestZoneSnapshots(sensorCollection, 500);
+    const selectedZone = requestedZone || zones[0]?.zone || config.zone;
+
+    const [latest, recent] = await Promise.all([
+      sensorCollection
+        .find({ zone: selectedZone })
+        .sort({ timestamp: -1, _id: -1 })
+        .limit(1)
+        .next(),
+      sensorCollection
+        .find({ zone: selectedZone })
+        .sort({ timestamp: -1, _id: -1 })
+        .limit(limit)
+        .toArray()
+    ]);
+
+    response.json({
+      selectedZone,
+      latest: latest ? toApiReading(latest) : null,
+      recent: recent.map(toApiReading),
+      zones,
+      fetchedAt: new Date()
+    });
+  }));
+
   app.get("/api/readings/zones", asyncRoute(async (request, response) => {
     const rawLimit = Number.parseInt(request.query.limit, 10);
     const limit = Number.isInteger(rawLimit) && rawLimit > 0
       ? Math.min(rawLimit, 500)
       : 200;
-
-    const documents = await sensorCollection
-      .find()
-      .sort({ timestamp: -1, _id: -1 })
-      .limit(limit)
-      .toArray();
-
-    const latestByZone = new Map();
-    for (const document of documents) {
-      const reading = toApiReading(document);
-      if (!latestByZone.has(reading.zone)) {
-        latestByZone.set(reading.zone, reading);
-      }
-    }
+    const zones = await loadLatestZoneSnapshots(sensorCollection, limit);
 
     response.json({
-      zones: Array.from(latestByZone.values()),
+      zones,
+      fetchedAt: new Date()
+    });
+  }));
+
+  app.post("/api/readings/device", asyncRoute(async (request, response) => {
+    const payload = parseDeviceReadingPayload(request.body);
+    const sensorDocument = buildMongoDocumentFromSample(payload, config);
+    const sensorInsert = await sensorCollection.insertOne(sensorDocument);
+    const actualReading = {
+      _id: sensorInsert.insertedId,
+      ...sensorDocument
+    };
+
+    const { result } = await inferService(config, sensorCollection, {
+      timestamp: payload.timestamp,
+      zone: payload.zone,
+      temperature: payload.temperature,
+      humidity: payload.humidity,
+      lightLux: payload.lightLux,
+      dustMgPerM3: payload.dustMgPerM3,
+      mq135Raw: payload.mq135Raw,
+      mq135AirQualityDeviation: payload.mq135AirQualityDeviation
+    });
+
+    const mlDocument = buildMlPredictionDocument({
+      zone: payload.zone,
+      timestamp: payload.timestamp,
+      actualReading,
+      predictedHumidity: payload.predictedHumidity,
+      predictionHorizon: payload.predictionHorizon,
+      inferenceLatencyMs: payload.inferenceLatencyMs,
+      tinymlModelVersion: payload.modelVersion,
+      inferenceResult: result,
+      config
+    });
+
+    const saved = await saveMlPredictionDocument(mlCollection, mlDocument);
+    if (alertService) {
+      await alertService.sendAlert({
+        actualReading,
+        inference: result,
+        source: payload.predictedHumidity !== null ? "device-direct-with-tinyml" : "device-direct"
+      });
+    }
+    console.log(
+      `Stored direct device reading for ${payload.zone} at ${payload.timestamp}${payload.predictedHumidity !== null ? " with TinyML prediction" : ""}`
+    );
+
+    response.status(201).json({
+      stored: true,
+      reading: toApiReading(actualReading),
+      tinyml: toTinymlSnapshot(saved.document),
+      inference: toMlInferenceSnapshot(saved.document, config.backendModelVersion),
       fetchedAt: new Date()
     });
   }));

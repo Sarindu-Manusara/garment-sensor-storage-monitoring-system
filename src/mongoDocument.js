@@ -75,8 +75,8 @@ function buildMongoDocument(parsedDocument, config) {
 
   return {
     timestamp: parsedDocument.collectedAt instanceof Date ? parsedDocument.collectedAt : new Date(),
-    zone: config.zone,
-    deviceId: parsedDocument.deviceId || config.deviceId,
+    zone: parsedDocument.zone || parsedDocument.rawPayload?.zone || config.zone,
+    deviceId: parsedDocument.deviceId || parsedDocument.rawPayload?.deviceId || config.deviceId,
     sourceFormat: parsedDocument.sourceFormat || "json",
     temperature: temperature ?? null,
     humidity: humidity ?? null,
@@ -90,7 +90,35 @@ function buildMongoDocument(parsedDocument, config) {
   };
 }
 
+function buildMongoDocumentFromSample(sample, config) {
+  const thresholds = config.riskThresholds || {};
+  const highestRiskScore = Math.max(
+    toRiskScore(sample.temperature, thresholds.temperature),
+    toRiskScore(sample.humidity, thresholds.humidity),
+    toRiskScore(sample.lightLux, thresholds.light),
+    toRiskScore(sample.dustMgPerM3, thresholds.dust),
+    toRiskScore(sample.mq135AirQualityDeviation, thresholds.gas)
+  );
+
+  return {
+    timestamp: new Date(sample.timestamp),
+    zone: sample.zone || config.zone,
+    deviceId: sample.deviceId || config.deviceId,
+    sourceFormat: "device-api",
+    temperature: sample.temperature ?? null,
+    humidity: sample.humidity ?? null,
+    lightLux: sample.lightLux ?? null,
+    dustMgPerM3: sample.dustMgPerM3 ?? null,
+    mq135Raw: sample.mq135Raw ?? null,
+    mq135AirQualityDeviation: sample.mq135AirQualityDeviation ?? null,
+    light: sample.lightLux ?? null,
+    dust: sample.dustMgPerM3 ?? null,
+    risk_level: riskLevelFromScore(highestRiskScore)
+  };
+}
+
 module.exports = {
+  buildMongoDocumentFromSample,
   buildMongoDocument,
   riskLevelFromScore,
   toRiskScore

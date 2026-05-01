@@ -18,19 +18,18 @@ function mapReadingToMlSample(reading) {
   };
 }
 
-function runPythonMlInference(config, payload) {
-  const candidateScriptPaths = [
-    path.resolve(__dirname, "..", "backend", "ml", "inference", "live_infer.py")
-  ];
-  const scriptPath = candidateScriptPaths.find((candidate) => fs.existsSync(candidate));
+function buildPythonBinCandidates(config) {
+  return Array.from(new Set([
+    config.pythonBin,
+    process.platform === "win32" ? "py" : "python3",
+    "python",
+    "python3"
+  ].filter(Boolean)));
+}
 
-  if (!scriptPath) {
-    const checked = candidateScriptPaths.join(", ");
-    return Promise.reject(new Error(`Python ML inference entrypoint was not found. Checked: ${checked}`));
-  }
-
+function runPythonProcess(command, scriptPath, payload) {
   return new Promise((resolve, reject) => {
-    const child = spawn(config.pythonBin, [scriptPath], {
+    const child = spawn(command, [scriptPath], {
       cwd: path.resolve(__dirname, ".."),
       stdio: ["pipe", "pipe", "pipe"]
     });
@@ -47,12 +46,18 @@ function runPythonMlInference(config, payload) {
     });
 
     child.on("error", (error) => {
-      reject(error);
+      const enrichedError = new Error(error.message);
+      enrichedError.code = error.code;
+      enrichedError.command = command;
+      reject(enrichedError);
     });
 
     child.on("close", (code) => {
       if (code !== 0) {
-        reject(new Error(stderr || `Python ML process exited with code ${code}.`));
+        const failure = new Error(stderr || `Python ML process exited with code ${code}.`);
+        failure.code = code;
+        failure.command = command;
+        reject(failure);
         return;
       }
 
@@ -66,6 +71,37 @@ function runPythonMlInference(config, payload) {
     child.stdin.write(JSON.stringify(payload));
     child.stdin.end();
   });
+}
+
+async function runPythonMlInference(config, payload) {
+  const candidateScriptPaths = [
+    path.resolve(__dirname, "..", "backend", "ml", "inference", "live_infer.py")
+  ];
+  const scriptPath = candidateScriptPaths.find((candidate) => fs.existsSync(candidate));
+
+  if (!scriptPath) {
+    const checked = candidateScriptPaths.join(", ");
+    return Promise.reject(new Error(`Python ML inference entrypoint was not found. Checked: ${checked}`));
+  }
+
+  const candidateBins = buildPythonBinCandidates(config);
+  let lastError = null;
+
+  for (const command of candidateBins) {
+    try {
+      return await runPythonProcess(command, scriptPath, payload);
+    } catch (error) {
+      lastError = error;
+      if (error.code !== "ENOENT") {
+        throw error;
+      }
+    }
+  }
+
+  const checkedBins = candidateBins.join(", ");
+  throw new Error(
+    `Python runtime was not found. Checked commands: ${checkedBins}. Set PYTHON_BIN to a valid Python executable.`
+  );
 }
 
 async function loadSensorHistory(sensorCollection, zone, timestamp, limit = 24) {

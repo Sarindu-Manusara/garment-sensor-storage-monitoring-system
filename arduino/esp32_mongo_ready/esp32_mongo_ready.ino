@@ -28,11 +28,11 @@
 #define DHT2_PIN       5
 #define DUST_LED_PIN   26
 #define DUST_VO_PIN    34
-#define MQ135_PIN      35
+#define MQ135_PIN      32
 
 const char *DEVICE_ID = "esp32-garment-1";
 const char *ZONE = "zone1";
-const unsigned long REPORT_INTERVAL_MS = 30000;
+const unsigned long REPORT_INTERVAL_MS = 5000;
 
 const float ADC_REF_VOLTAGE = 3.3f;
 const int ADC_MAX_VALUE = 4095;
@@ -49,6 +49,8 @@ const char *NTP_SERVER_2 = "time.nist.gov";
 
 BH1750 lightMeter;
 HumidityInferenceEngine humidityInference;
+bool lightSensorReady = false;
+bool tinyMlReady = false;
 
 struct DHTData {
   float temperatureC;
@@ -75,6 +77,12 @@ struct SensorSnapshot {
   float dustMgPerM3;
   int mq135Raw;
   float mq135AirQualityDeviation;
+};
+
+struct TinyMlUploadStatus {
+  bool uploadAttempted;
+  bool uploadSucceeded;
+  int httpStatus;
 };
 
 float rawToVoltage(int raw) {
@@ -219,6 +227,148 @@ bool hasWifiConfig() {
   return WIFI_SSID[0] != '\0' && WIFI_PASSWORD[0] != '\0';
 }
 
+bool hasPredictionEndpointConfig() {
+  return PREDICTION_ENDPOINT[0] != '\0';
+}
+
+bool isLightValid(float lux) {
+  return !isnan(lux) && lux >= 0.0f;
+}
+
+bool isDustValid(const DustData &dust) {
+  return dust.raw > 0 && dust.raw < ADC_MAX_VALUE;
+}
+
+bool isMq135Valid(const MQ135Data &mq135) {
+  return mq135.raw > 0 && mq135.raw < ADC_MAX_VALUE;
+}
+
+int countFailingSensors(const DHTData &dht1, const DHTData &dht2, float lux, const DustData &dust, const MQ135Data &mq135) {
+  int failures = 0;
+  if (!dht1.valid) failures++;
+  if (!dht2.valid) failures++;
+  if (!isLightValid(lux)) failures++;
+  if (!isDustValid(dust)) failures++;
+  if (!isMq135Valid(mq135)) failures++;
+  return failures;
+}
+
+void printFailingSensorsArray(const DHTData &dht1, const DHTData &dht2, float lux, const DustData &dust, const MQ135Data &mq135) {
+  bool first = true;
+  Serial.print("\"failingSensors\":[");
+  if (!dht1.valid) {
+    Serial.print("\"dht1\"");
+    first = false;
+  }
+  if (!dht2.valid) {
+    if (!first) Serial.print(",");
+    Serial.print("\"dht2\"");
+    first = false;
+  }
+  if (!isLightValid(lux)) {
+    if (!first) Serial.print(",");
+    Serial.print("\"bh1750\"");
+    first = false;
+  }
+  if (!isDustValid(dust)) {
+    if (!first) Serial.print(",");
+    Serial.print("\"dust\"");
+    first = false;
+  }
+  if (!isMq135Valid(mq135)) {
+    if (!first) Serial.print(",");
+    Serial.print("\"mq135\"");
+  }
+  Serial.print("]");
+}
+
+void printSensorStatusJson(const DHTData &dht1, const DHTData &dht2, float lux, const DustData &dust, const MQ135Data &mq135) {
+  Serial.print("\"sensorStatus\":{");
+  Serial.print("\"dht1\":\"");
+  Serial.print(dht1.valid ? "ok" : "fail");
+  Serial.print("\",\"dht2\":\"");
+  Serial.print(dht2.valid ? "ok" : "fail");
+  Serial.print("\",\"bh1750\":\"");
+  Serial.print(isLightValid(lux) ? "ok" : "fail");
+  Serial.print("\",\"dust\":\"");
+  Serial.print(isDustValid(dust) ? "ok" : "fail");
+  Serial.print("\",\"mq135\":\"");
+  Serial.print(isMq135Valid(mq135) ? "ok" : "fail");
+  Serial.print("\"}");
+}
+
+void printTinyMlStatusJson(
+  const TinyMlInferenceResult &prediction,
+  bool wifiConnected,
+  bool uploadConfigured,
+  const TinyMlUploadStatus &uploadStatus
+) {
+  const int bufferedReadings = humidityInference.bufferedCount();
+  const bool windowReady = humidityInference.canInfer();
+
+  const char *state = "collecting_window";
+  if (!humidityInference.isEnabled()) {
+    state = "runtime_unavailable";
+  } else if (!windowReady) {
+    state = "collecting_window";
+  } else if (!prediction.valid) {
+    state = "inference_failed";
+  } else if (!uploadConfigured) {
+    state = "upload_disabled";
+  } else if (!wifiConnected) {
+    state = "wifi_disconnected";
+  } else if (!uploadStatus.uploadAttempted) {
+    state = "prediction_ready";
+  } else if (uploadStatus.uploadSucceeded) {
+    state = "uploaded";
+  } else {
+    state = "upload_failed";
+  }
+
+  Serial.print("\"tinyml\":{");
+  Serial.print("\"enabled\":");
+  Serial.print(humidityInference.isEnabled() ? "true" : "false");
+  Serial.print(",\"windowReady\":");
+  Serial.print(windowReady ? "true" : "false");
+  Serial.print(",\"bufferedReadings\":");
+  Serial.print(bufferedReadings);
+  Serial.print(",\"requiredReadings\":");
+  Serial.print(kHumidityWindowSize);
+  Serial.print(",\"predictionValid\":");
+  Serial.print(prediction.valid ? "true" : "false");
+  Serial.print(",\"predictedHumidity\":");
+  if (prediction.valid) {
+    Serial.print(prediction.predictedHumidity, 2);
+  } else {
+    Serial.print("null");
+  }
+  Serial.print(",\"inferenceLatencyMs\":");
+  if (prediction.valid) {
+    Serial.print(prediction.inferenceLatencyMs);
+  } else {
+    Serial.print("null");
+  }
+  Serial.print(",\"wifiConnected\":");
+  Serial.print(wifiConnected ? "true" : "false");
+  Serial.print(",\"uploadConfigured\":");
+  Serial.print(uploadConfigured ? "true" : "false");
+  Serial.print(",\"uploadAttempted\":");
+  Serial.print(uploadStatus.uploadAttempted ? "true" : "false");
+  Serial.print(",\"uploadSucceeded\":");
+  Serial.print(uploadStatus.uploadSucceeded ? "true" : "false");
+  Serial.print(",\"httpStatus\":");
+  if (uploadStatus.uploadAttempted) {
+    Serial.print(uploadStatus.httpStatus);
+  } else {
+    Serial.print("null");
+  }
+  Serial.print(",\"modelVersion\":\"");
+  Serial.print(prediction.modelVersion);
+  Serial.print("\",\"state\":\"");
+  Serial.print(state);
+  Serial.print("\"}");
+}
+
 void connectWifiIfConfigured() {
   if (!hasWifiConfig() || WiFi.status() == WL_CONNECTED) {
     return;
@@ -334,7 +484,11 @@ void printSensorPayload(
   const DustData &dust,
   float lux,
   const MQ135Data &mq135,
-  const SensorSnapshot &snapshot
+  const SensorSnapshot &snapshot,
+  const TinyMlInferenceResult &prediction,
+  const TinyMlUploadStatus &uploadStatus,
+  bool wifiConnected,
+  bool uploadConfigured
 ) {
   char timestampBuffer[32];
   bool hasTimestamp = tryGetIsoTimestamp(timestampBuffer, sizeof(timestampBuffer));
@@ -363,6 +517,8 @@ void printSensorPayload(
   Serial.print(snapshot.mq135Raw);
   Serial.print(",\"mq135AirQualityDeviation\":");
   Serial.print(snapshot.mq135AirQualityDeviation, 6);
+  Serial.print(",\"failedSensorCount\":");
+  Serial.print(countFailingSensors(dht1, dht2, lux, dust, mq135));
   Serial.print(",");
   printDHTJson("dht1", dht1);
   Serial.print(",");
@@ -373,12 +529,19 @@ void printSensorPayload(
   printLightJson(lux);
   Serial.print(",");
   printMq135Json(mq135);
+  Serial.print(",");
+  printSensorStatusJson(dht1, dht2, lux, dust, mq135);
+  Serial.print(",");
+  printFailingSensorsArray(dht1, dht2, lux, dust, mq135);
+  Serial.print(",");
+  printTinyMlStatusJson(prediction, wifiConnected, uploadConfigured, uploadStatus);
   Serial.println("}");
 }
 
-void uploadTinyMlPrediction(const char *timestamp, const TinyMlInferenceResult &prediction) {
-  if (PREDICTION_ENDPOINT[0] == '\0' || WiFi.status() != WL_CONNECTED) {
-    return;
+TinyMlUploadStatus uploadTinyMlPrediction(const char *timestamp, const TinyMlInferenceResult &prediction) {
+  TinyMlUploadStatus status = {false, false, 0};
+  if (!hasPredictionEndpointConfig() || WiFi.status() != WL_CONNECTED) {
+    return status;
   }
 
   HTTPClient http;
@@ -398,8 +561,11 @@ void uploadTinyMlPrediction(const char *timestamp, const TinyMlInferenceResult &
   payload += prediction.modelVersion;
   payload += "\"}";
 
-  http.POST(payload);
+  status.uploadAttempted = true;
+  status.httpStatus = http.POST(payload);
+  status.uploadSucceeded = status.httpStatus >= 200 && status.httpStatus < 300;
   http.end();
+  return status;
 }
 
 void setup() {
@@ -416,8 +582,8 @@ void setup() {
   analogReadResolution(12);
   Wire.begin(21, 22);
 
-  lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE, 0x23, &Wire);
-  humidityInference.begin();
+  lightSensorReady = lightMeter.begin(BH1750::CONTINUOUS_HIGH_RES_MODE, 0x23, &Wire);
+  tinyMlReady = humidityInference.begin();
 
   connectWifiIfConfigured();
   if (WiFi.status() == WL_CONNECTED) {
@@ -434,8 +600,10 @@ void loop() {
   float lux = lightMeter.readLightLevel();
   MQ135Data mq135 = readMq135Averaged(5);
   SensorSnapshot snapshot = buildSnapshot(dht1, dht2, dust, lux, mq135);
-
-  printSensorPayload(dht1, dht2, dust, lux, mq135, snapshot);
+  const bool wifiConnected = WiFi.status() == WL_CONNECTED;
+  const bool uploadConfigured = hasPredictionEndpointConfig();
+  TinyMlInferenceResult prediction = {false, 0.0f, 0, tinyMlReady ? "tinyml-humidity-v1" : "tinyml-runtime-unavailable"};
+  TinyMlUploadStatus uploadStatus = {false, false, 0};
 
   if (snapshot.valid) {
     TinyMlReading reading = {
@@ -449,13 +617,19 @@ void loop() {
     humidityInference.pushReading(reading);
 
     if (humidityInference.canInfer()) {
-      TinyMlInferenceResult prediction = humidityInference.predict();
+      prediction = humidityInference.predict();
       char timestampBuffer[32];
       if (prediction.valid && tryGetIsoTimestamp(timestampBuffer, sizeof(timestampBuffer))) {
-        uploadTinyMlPrediction(timestampBuffer, prediction);
+        uploadStatus = uploadTinyMlPrediction(timestampBuffer, prediction);
       }
     }
   }
+
+  if (!lightSensorReady && !isLightValid(lux)) {
+    lux = -1.0f;
+  }
+
+  printSensorPayload(dht1, dht2, dust, lux, mq135, snapshot, prediction, uploadStatus, wifiConnected, uploadConfigured);
 
   delay(REPORT_INTERVAL_MS);
 }
